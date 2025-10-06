@@ -20,6 +20,12 @@ export default function LibraryPage() {
   const [selectedReceipts, setSelectedReceipts] = useState<number[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'processed' | 'in_process'>('all');
+
   const handleSort = (key: keyof Receipt, direction: 'asc' | 'desc') => {
     if (sortState.key === key && sortState.direction === direction) {
       return;
@@ -91,20 +97,75 @@ export default function LibraryPage() {
     }
   };
 
-  const handleSearch = (term: string) => {
-    const query = term.trim().toLowerCase();
-    if (!query) {
-      setFilteredReceipts(receipts);
-      return;
-    }
-    const filtered = receipts.filter((receipt) => {
-      const companyMatch = receipt.company.toLowerCase().includes(query);
-      const dateMatch = receipt.date.toLowerCase().includes(query);
-      const currencyMatch = receipt.currency.toLowerCase().includes(query);
-      const itemMatch = Array.isArray(receipt.items) && receipt.items.some((it) => (it.name || '').toLowerCase().includes(query));
-      return companyMatch || dateMatch || currencyMatch || itemMatch;
+  const getStatus = (r: Receipt): 'Processed' | 'In process' => {
+    const hasTotal = Number(r.total || 0) > 0;
+    const hasFile = !!(r.file_url && r.file_url.length > 0);
+    return hasTotal && hasFile ? 'Processed' : 'In process';
+  };
+
+  const currencyToCzkRate: Record<string, number> = {
+    USD: 24.0,
+    EUR: 25.0,
+    GBP: 29.0,
+    CZK: 1,
+  };
+
+  const normalizeCurrencyCode = (raw: string): keyof typeof currencyToCzkRate | 'USD' => {
+    const c = (raw || '').trim();
+    if (!c) return 'USD';
+    // Map common symbols to ISO codes
+    if (c === '€') return 'EUR';
+    if (c === '$') return 'USD';
+    if (c === '£') return 'GBP';
+    if (/^kč$/i.test(c)) return 'CZK';
+    const up = c.toUpperCase();
+    if (up in currencyToCzkRate) return up as keyof typeof currencyToCzkRate;
+    // Accept known 3-letter codes
+    if (/^[A-Z]{3}$/.test(up)) return (up as any);
+    return 'USD';
+  };
+
+  const formatMoneyWithCZK = (amount: number, currency: string) => {
+    const iso = normalizeCurrencyCode(currency);
+    const original = new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: iso }).format(amount || 0);
+    const rate = currencyToCzkRate[iso] || 1;
+    const czkValue = amount * rate;
+    const czk = new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK' }).format(czkValue || 0);
+    if (!rate || rate === 1) return original;
+    return `${original} (${czk})`;
+  };
+
+  const applyFilters = (base: Receipt[], term: string, from: string, to: string, status: 'all' | 'processed' | 'in_process') => {
+    const q = term.trim().toLowerCase();
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+
+    const filtered = base.filter((r) => {
+      const matchesSearch = q
+        ? (
+            r.company.toLowerCase().includes(q) ||
+            r.date.toLowerCase().includes(q) ||
+            r.currency.toLowerCase().includes(q) ||
+            (Array.isArray(r.items) && r.items.some((it) => (it.name || '').toLowerCase().includes(q)))
+          )
+        : true;
+
+      const d = new Date(r.date);
+      const afterFrom = fromDate ? d >= fromDate : true;
+      const beforeTo = toDate ? d <= toDate : true;
+      const matchesDate = afterFrom && beforeTo;
+
+      const s = getStatus(r);
+      const matchesStatus = status === 'all' ? true : status === 'processed' ? s === 'Processed' : s === 'In process';
+
+      return matchesSearch && matchesDate && matchesStatus;
     });
     setFilteredReceipts(filtered);
+  };
+
+  const handleSearch = (term: string) => {
+    setSearchQuery(term);
+    applyFilters(receipts, term, dateFrom, dateTo, statusFilter);
   };
 
   useEffect(() => {
@@ -126,6 +187,10 @@ export default function LibraryPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    applyFilters(receipts, searchQuery, dateFrom, dateTo, statusFilter);
+  }, [receipts, searchQuery, dateFrom, dateTo, statusFilter]);
+
   return (
     <div className="relative min-h-screen bg-neutral-950">
       {/* Header bar */}
@@ -134,6 +199,36 @@ export default function LibraryPage() {
           {/* Left cluster */}
           <div className="flex items-center gap-4">
             <SearchBar onSearch={handleSearch} className="max-md:flex-1" />
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm"
+              />
+              <span className="text-neutral-500 text-sm">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm"
+            >
+              <option value="all">All statuses</option>
+              <option value="processed">Processed</option>
+              <option value="in_process">In process</option>
+            </select>
+            <button
+              onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setSearchQuery(''); setFilteredReceipts(receipts); }}
+              className="text-neutral-300 hover:text-white text-sm px-2 py-1 border border-neutral-800 rounded"
+            >
+              Clear
+            </button>
           </div>
           {/* Center title */}
           <div className="flex items-center justify-center">
@@ -155,7 +250,7 @@ export default function LibraryPage() {
               href="/aura-ocr"
               className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-500"
             >
-              Upload
+              Create expense
             </Link>
           </div>
         </div>
@@ -177,6 +272,8 @@ export default function LibraryPage() {
             sortState={sortState} 
             onDetailClick={handleViewDetails} 
             formatDate={formatDate}
+            getStatus={getStatus}
+            formatMoneyWithCZK={formatMoneyWithCZK}
             selectedReceipts={selectedReceipts}
             onReceiptSelect={handleReceiptSelect}
             onDeleteSelected={handleDeleteSelected}

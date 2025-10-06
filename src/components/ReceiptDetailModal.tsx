@@ -16,6 +16,12 @@ export default function ReceiptDetailModal({ receipt, onClose }: ReceiptDetailMo
     return null;
   }
 
+  const status: 'Processed' | 'In process' = (() => {
+    const hasTotal = Number(receipt.total || 0) > 0;
+    const hasFile = !!(receipt.file_url && receipt.file_url.length > 0);
+    return hasTotal && hasFile ? 'Processed' : 'In process';
+  })();
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
       <div className="bg-gray-800 text-white p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -45,6 +51,15 @@ export default function ReceiptDetailModal({ receipt, onClose }: ReceiptDetailMo
           <div>
             <p className="text-gray-400">TAX AMOUNT:</p>
             <p className="text-lg">{receipt.totals_details.tax_amount} {receipt.currency}</p>
+          </div>
+          <div>
+            <p className="text-gray-400">STATUS:</p>
+            <p className="text-lg">
+              <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full text-xs border ${status === 'Processed' ? 'bg-green-900/30 text-green-300 border-green-800' : 'bg-purple-900/30 text-purple-300 border-purple-800'}`}>
+                <span className={`inline-block w-2 h-2 rounded-full ${status === 'Processed' ? 'bg-green-400' : 'bg-purple-400'}`}></span>
+                {status}
+              </span>
+            </p>
           </div>
         </div>
 

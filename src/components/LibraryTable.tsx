@@ -11,6 +11,8 @@ interface LibraryTableProps {
   sortState: { key: keyof Receipt; direction: 'asc' | 'desc' };
   onDetailClick?: (receipt: Receipt) => void;
   formatDate?: (dateString: string) => string;
+  getStatus?: (receipt: Receipt) => 'Processed' | 'In process';
+  formatMoneyWithCZK?: (amount: number, currency: string) => string;
   selectedReceipts?: number[];
   onReceiptSelect?: (receiptId: number, selected: boolean) => void;
   onDeleteSelected?: () => void;
@@ -23,6 +25,8 @@ export default function LibraryTable({
   sortState, 
   onDetailClick = () => {}, 
   formatDate,
+  getStatus,
+  formatMoneyWithCZK,
   selectedReceipts = [],
   onReceiptSelect = () => {},
   onDeleteSelected = () => {},
@@ -47,6 +51,10 @@ export default function LibraryTable({
 
   const allSelected = receipts.length > 0 && receipts.every(receipt => selectedReceipts.includes(receipt.id));
   const someSelected = selectedReceipts.length > 0;
+
+  const renderMoney = (amount: number, currency: string) => {
+    return formatMoneyWithCZK ? formatMoneyWithCZK(amount, currency) : `${amount} ${currency}`;
+  };
 
   return (
     <div className="mt-8 overflow-x-auto">
@@ -103,6 +111,7 @@ export default function LibraryTable({
             <th className="py-3 px-4 text-center border-r border-neutral-800 font-medium text-neutral-400">CURR</th>
             <th className="py-3 px-4 text-center border-r border-neutral-800 font-medium text-neutral-400">ITEMS</th>
             <th className="py-3 px-4 text-center border-r border-neutral-800 font-medium text-neutral-400">FILE</th>
+            <th className="py-3 px-4 text-center border-r border-neutral-800 font-medium text-neutral-400">STATUS</th>
             <th className="py-3 px-4 text-center">DETAIL</th>
           </tr>
         </thead>
@@ -120,9 +129,9 @@ export default function LibraryTable({
               <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.id}</td>
               <td className="py-2 px-4 text-center border-r border-neutral-800">{formatDate ? formatDate(receipt.date) : receipt.date}</td>
               <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.company}</td>
-              <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.total}</td>
-              <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.totals_details.subtotal}</td>
-              <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.totals_details.tax_amount}</td>
+              <td className="py-2 px-4 text-center border-r border-neutral-800">{renderMoney(receipt.total, receipt.currency)}</td>
+              <td className="py-2 px-4 text-center border-r border-neutral-800">{renderMoney(receipt.totals_details.subtotal, receipt.currency)}</td>
+              <td className="py-2 px-4 text-center border-r border-neutral-800">{renderMoney(receipt.totals_details.tax_amount, receipt.currency)}</td>
               <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.currency}</td>
               <td className="py-2 px-4 text-center border-r border-neutral-800">{receipt.items.length}</td>
               <td className="py-2 px-4 text-center border-r border-neutral-800">
@@ -131,6 +140,18 @@ export default function LibraryTable({
                 ) : (
                   <span className="text-neutral-500">No file</span>
                 )}
+              </td>
+              <td className="py-2 px-4 text-center border-r border-neutral-800">
+                {(() => {
+                  const s = getStatus ? getStatus(receipt) : 'Processed';
+                  const isProcessed = s === 'Processed';
+                  return (
+                    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full text-xs border ${isProcessed ? 'bg-green-900/30 text-green-300 border-green-800' : 'bg-purple-900/30 text-purple-300 border-purple-800'}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full ${isProcessed ? 'bg-green-400' : 'bg-purple-400'}`}></span>
+                      {s}
+                    </span>
+                  );
+                })()}
               </td>
               <td className="py-2 px-4 text-center">
                 <button 
