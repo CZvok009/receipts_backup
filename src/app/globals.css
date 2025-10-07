@@ -120,3 +120,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Make native date input calendar icon visible on dark backgrounds */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 1;
+}
+
+/* Ensure the entire date input feels clickable */
+input[type="date"] {
+  cursor: pointer;
+}

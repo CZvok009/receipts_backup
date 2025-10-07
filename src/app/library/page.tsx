@@ -7,6 +7,7 @@ import Link from 'next/link';
 import LibraryTable from '../../components/LibraryTable';
 import ReceiptDetailModal from '../../components/ReceiptDetailModal';
 import SearchBar from '../../components/SearchBar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { initialReceipts, Receipt } from '../../data/receipts';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -25,6 +26,8 @@ export default function LibraryPage() {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'processed' | 'in_process'>('all');
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const [uniqueCompanies, setUniqueCompanies] = useState<string[]>([]);
 
   const handleSort = (key: keyof Receipt, direction: 'asc' | 'desc') => {
     if (sortState.key === key && sortState.direction === direction) {
@@ -158,7 +161,8 @@ export default function LibraryPage() {
       const s = getStatus(r);
       const matchesStatus = status === 'all' ? true : status === 'processed' ? s === 'Processed' : s === 'In process';
 
-      return matchesSearch && matchesDate && matchesStatus;
+      const matchesCompany = companyFilter ? r.company === companyFilter : true;
+      return matchesSearch && matchesDate && matchesStatus && matchesCompany;
     });
     setFilteredReceipts(filtered);
   };
@@ -179,6 +183,8 @@ export default function LibraryPage() {
         const data: Receipt[] = await res.json();
         setReceipts(data);
         setFilteredReceipts(data);
+        const companies = Array.from(new Set((data || []).map((r) => (r.company || '').trim()).filter(Boolean))).sort();
+        setUniqueCompanies(companies);
       } catch {}
       finally {
         setIsLoading(false);
@@ -189,7 +195,16 @@ export default function LibraryPage() {
 
   useEffect(() => {
     applyFilters(receipts, searchQuery, dateFrom, dateTo, statusFilter);
-  }, [receipts, searchQuery, dateFrom, dateTo, statusFilter]);
+  }, [receipts, searchQuery, dateFrom, dateTo, statusFilter, companyFilter]);
+
+  useEffect(() => {
+    const companies = Array.from(new Set((receipts || []).map((r) => (r.company || '').trim()).filter(Boolean))).sort();
+    setUniqueCompanies(companies);
+  }, [receipts]);
+
+  const handleToggleCompany = (name: string) => {
+    setCompanyFilter((prev) => (prev === name ? null : name));
+  };
 
   return (
     <div className="relative min-h-screen bg-neutral-950">
@@ -204,16 +219,17 @@ export default function LibraryPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm"
+                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm cursor-pointer"
               />
               <span className="text-neutral-500 text-sm">to</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm"
+                className="bg-neutral-900 border border-neutral-800 text-neutral-200 rounded px-2 py-1 text-sm cursor-pointer"
               />
             </div>
+            {/* Company moved to center cell */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -224,15 +240,33 @@ export default function LibraryPage() {
               <option value="in_process">In process</option>
             </select>
             <button
-              onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setSearchQuery(''); setFilteredReceipts(receipts); }}
+              onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setSearchQuery(''); setCompanyFilter(null); setFilteredReceipts(receipts); }}
               className="text-neutral-300 hover:text-white text-sm px-2 py-1 border border-neutral-800 rounded"
             >
               Clear
             </button>
           </div>
-          {/* Center title */}
+          {/* Center area: Company dropdown full width */}
           <div className="flex items-center justify-center">
-            <h1 className="text-neutral-100 text-lg font-semibold tracking-tight">Your Library</h1>
+            <div className="w-full max-w-xl">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 rounded h-9 px-3 text-sm text-left">
+                  {companyFilter ? `Company: ${companyFilter}` : 'Company: All'}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-neutral-900 border-neutral-800 text-neutral-200 max-h-[60vh] overflow-auto w-[min(90vw,40rem)]">
+                  <DropdownMenuLabel className="text-neutral-400">Companies</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-neutral-800" />
+                  <DropdownMenuItem onClick={() => handleToggleCompany(companyFilter || '')} className={`${!companyFilter ? 'font-semibold' : ''}`}>
+                    All
+                  </DropdownMenuItem>
+                  {uniqueCompanies.map((name) => (
+                    <DropdownMenuItem key={name} onClick={() => handleToggleCompany(name)} className={`${companyFilter === name ? 'font-semibold' : ''}`}>
+                      {name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
           {/* Right cluster */}
           <div className="flex items-center justify-end gap-4">
@@ -258,6 +292,11 @@ export default function LibraryPage() {
 
       {/* Hlavní obsah stránky Library */}
       <div className="relative flex flex-col items-center justify-start min-h-screen pt-4 z-20 px-8">
+
+        {/* Title moved just above table */}
+        <div className="w-full max-w-[1400px] mx-auto">
+          <h1 className="text-neutral-100 text-lg font-semibold tracking-tight mb-2">Your Library</h1>
+        </div>
 
         {/* Loading State */}
         {isLoading ? (
